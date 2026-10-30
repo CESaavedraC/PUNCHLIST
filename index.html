@@ -43,12 +43,13 @@ textarea{width:100%;min-height:60px}
 a.b{color:var(--ac);cursor:pointer}
 .drow{display:flex;gap:6px;margin-top:6px}.drow .door{margin-top:0;flex:1}.cam{font-size:22px;padding:8px 14px}
 .bn{background:var(--card);border-bottom:1px solid var(--bd);padding:6px 14px;font-size:12px;color:var(--mut)}.bn.w{color:var(--red);font-weight:600}
+.k{cursor:pointer;border-color:var(--ac)!important}.ph img.big{width:100%;height:auto;max-height:60vh;object-fit:contain}
 </style>
 </head>
 <body>
 <header>
 <h1 id="ttl">Punchlist puertas · 25 MVS</h1>
-<button id="exp">CSV</button><button id="bak">Guardar respaldo</button>
+<button id="exp">CSV</button><button id="bak">Guardar respaldo</button><select id="ql" title="Calidad de las fotos nuevas"><option value="s">Foto estándar</option><option value="a">Foto alta</option><option value="m">Foto máxima</option></select>
 <button id="imp">Unir respaldos</button><input id="file" type="file" accept=".json,application/json" multiple hidden>
 </header>
 <div id="bn"></div>
@@ -57,23 +58,26 @@ a.b{color:var(--ac);cursor:pointer}
 <script>
 const NMVS=25,NPCS=4,DOORS={F:'Frontal',P:'Posterior'};
 const ST={abierto:'Abierto',proceso:'En proceso',cerrado:'Cerrado'};
-let items=[],v={m:null,p:null,d:null},db=null,last=0;
+let items=[],v={m:null,p:null,d:null},db=null,last=0,lf='p',opn=null;
+const QS={s:[1280,.75],a:[1920,.85],m:[4000,.92]};let ql='a';try{ql=localStorage.getItem('pq')||'a'}catch(e){}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const $=s=>document.querySelector(s);
-function idb(){return new Promise(r=>{try{const q=indexedDB.open('punchlist-mvs',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>{db=q.result;r()};q.onerror=()=>r()}catch(e){r()}})}
-function load(){return new Promise(r=>{if(!db)return r();try{const t=db.transaction('kv'),o=t.objectStore('kv'),g=o.get('items'),l=o.get('last');g.onsuccess=()=>{items=g.result||[]};l.onsuccess=()=>{last=l.result||0};t.oncomplete=()=>r();t.onerror=()=>r();t.onabort=()=>r()}catch(e){r()}})}
+function idb(){return new Promise(r=>{try{const q=indexedDB.open('punchlist-mvs',2);q.onupgradeneeded=()=>{const d=q.result;if(!d.objectStoreNames.contains('kv'))d.createObjectStore('kv');if(!d.objectStoreNames.contains('it'))d.createObjectStore('it')};q.onsuccess=()=>{db=q.result;r()};q.onerror=()=>r();q.onblocked=()=>r()}catch(e){r()}})}
+const saved=new Map(),sig=i=>(i.u||i.f)+':'+i.s+':'+i.fo.length+':'+i.t.length;
+function load(){return new Promise(r=>{if(!db)return r();let mig=false;try{const t=db.transaction(['kv','it']),k=t.objectStore('kv'),g=t.objectStore('it').getAll(),old=k.get('items'),l=k.get('last');g.onsuccess=()=>{items=g.result||[];items.forEach(i=>saved.set(i.id,sig(i)))};old.onsuccess=()=>{if(old.result&&old.result.length&&!items.length){items=old.result;mig=true}};l.onsuccess=()=>{last=l.result||0};t.oncomplete=()=>{const t2=save();if(mig&&t2)t2.oncomplete=()=>{try{db.transaction('kv','readwrite').objectStore('kv').delete('items')}catch(e){}};r()};t.onerror=()=>r();t.onabort=()=>r()}catch(e){r()}})}
 function setLast(t){last=t;try{if(db)db.transaction('kv','readwrite').objectStore('kv').put(t,'last')}catch(e){}}
-function banner(){const mb=(JSON.stringify(items).length/1048576).toFixed(1),nw=items.filter(i=>(i.u||i.f)>last).length,h=last?Math.round((Date.now()-last)/36e5):0;
+function banner(){const mb=(items.reduce((s,i)=>s+i.t.length+i.fo.reduce((a,f)=>a+f.length,0),0)/1048576).toFixed(1),nw=items.filter(i=>(i.u||i.f)>last).length,h=last?Math.round((Date.now()-last)/36e5):0;
  $('#bn').innerHTML=`<div class="bn ${db?'':'w'}">${db?'💾 Guardado en este teléfono':'⚠ Este navegador no permite guardar datos: respalda de inmediato y no cierres la página'} · ${mb} MB · ${nw} cambio(s) sin respaldar · último respaldo: ${last?'hace '+(h<48?h+' h':Math.round(h/24)+' d'):'nunca'}</div>`}
-function save(){try{if(db)db.transaction('kv','readwrite').objectStore('kv').put(items,'items')}catch(e){console.error(e)}}
+function save(){try{if(!db)return;const t=db.transaction('it','readwrite'),o=t.objectStore('it'),ids=new Set();t.onabort=()=>alert('No se pudo guardar (¿almacenamiento lleno?). Haz un respaldo ahora.');for(const i of items){ids.add(i.id);const g=sig(i);if(saved.get(i.id)!==g){o.put(i,i.id);saved.set(i.id,g)}}for(const k of [...saved.keys()])if(!ids.has(k)){o.delete(k);saved.delete(k)}return t}catch(e){console.error(e)}}
 const cnt=(m,p,d)=>{const l=items.filter(i=>i.m==m&&(!p||i.p==p)&&(!d||i.d==d));return{t:l.length,o:l.filter(i=>i.s!='cerrado').length}};
 function render(){render0();banner()}
 function render0(){
  const a=$('#app');
+ if(v.list){listView(a);return}
  if(!v.m){
   const all=cnt(),open=all.o;let dp=0;for(let m=1;m<=NMVS;m++)for(let p=1;p<=NPCS;p++)for(const d in DOORS)if(cnt(m,p,d).o)dp++;
   $('#ttl').textContent='Punchlist puertas · 25 MVS';
-  let h=`<div class="sum"><div><b style="color:var(--grn)">${NMVS*NPCS*2-dp}</b>Puertas OK de ${NMVS*NPCS*2}</div><div><b style="color:var(--red)">${dp}</b>Puertas con pendientes</div><div><b>${all.t}</b>Observaciones</div><div><b style="color:var(--red)">${open}</b>Pendientes</div><div><b style="color:var(--grn)">${all.t-open}</b>Cerradas</div></div><div class="grid">`;
+  let h=`<div class="sum"><div><b style="color:var(--grn)">${NMVS*NPCS*2-dp}</b>Puertas OK de ${NMVS*NPCS*2}</div><div class="k" onclick="showList('p')"><b style="color:var(--red)">${dp}</b>Puertas con pendientes ›</div><div class="k" onclick="showList('t')"><b>${all.t}</b>Observaciones ›</div><div class="k" onclick="showList('p')"><b style="color:var(--red)">${open}</b>Pendientes ›</div><div class="k" onclick="showList('c')"><b style="color:var(--grn)">${all.t-open}</b>Cerradas ›</div></div><div class="grid">`;
   for(let m=1;m<=NMVS;m++){const c=cnt(m);const pct=c.t?Math.round((c.t-c.o)/c.t*100):100;
    h+=`<button class="mv ${c.o?'o':''}" onclick="go(${m})"><h3>MVS ${String(m).padStart(2,'0')}</h3><div class="mut">${c.t?(c.o?c.o+' pendientes / '+c.t:'OK · '+c.t+' cerradas'):'OK · sin observaciones'}</div><div class="bar"><i style="width:${pct}%"></i></div></button>`}
   a.innerHTML=h+'</div>';
@@ -101,9 +105,21 @@ function render0(){
   a.innerHTML=h;
  }
 }
+function showList(f){lf=f||'p';opn=null;v={m:null,p:null,d:null,list:1};render();scrollTo(0,0)}
+function tgl(id){opn=opn==id?null:id;render()}
+function listView(a){
+ $('#ttl').textContent='Lista de observaciones';
+ const l=items.filter(i=>lf=='t'||(lf=='c'?i.s=='cerrado':i.s!='cerrado')).sort((x,y)=>x.m-y.m||x.p-y.p||x.d.localeCompare(y.d)||x.f-y.f);
+ let h=`<div class="row"><a class="b" onclick="go(null)">← Todas las MVS</a><span style="flex:1"></span><select onchange="showList(this.value)">${[['p','Pendientes'],['c','Cerradas'],['t','Todas']].map(o=>`<option value="${o[0]}" ${o[0]==lf?'selected':''}>${o[1]}</option>`).join('')}</select></div><p class="mut">${l.length} observación(es)</p>`;
+ for(const i of l){const o=opn==i.id;
+  h+=`<div class="item" onclick="tgl('${i.id}')" style="cursor:pointer"><div class="row"><b>MVS ${String(i.m).padStart(2,'0')} · PCS ${i.p} · ${DOORS[i.d]}</b><span class="st s-${i.s}">${ST[i.s]}</span><span style="flex:1"></span><span class="mut">${i.fo.length?'📷 '+i.fo.length:'sin foto'} ${o?'▲':'▼'}</span></div><div style="margin-top:4px">${esc(i.t)}</div>`;
+  if(o)h+=`<div class="ph">${i.fo.map((f,n)=>`<img class="big" src="${f}" alt="foto" onclick="event.stopPropagation();zoom('${i.id}',${n})">`).join('')}</div><div class="row" style="margin-top:8px"><button onclick="event.stopPropagation();v={m:${i.m},p:${i.p},d:'${i.d}'};render();scrollTo(0,0)">Abrir puerta</button></div>`;
+  h+='</div>'}
+ if(!l.length)h+='<p class="mut">No hay observaciones en esta lista.</p>';
+ a.innerHTML=h}
 function go(m){v={m,p:null,d:null};render();scrollTo(0,0)}
 function door(p,d,c){v.p=p;v.d=d;render();scrollTo(0,0);if(c){const e=$('#ph');if(e)e.click()}}
-function shrink(f){return new Promise(r=>{const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{const k=Math.min(1,900/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);r(c.toDataURL('image/jpeg',.6))};im.onerror=()=>r(null);im.src=u})}
+function shrink(f){return new Promise(r=>{const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{const k=Math.min(1,QS[ql][0]/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);r(c.toDataURL('image/jpeg',QS[ql][1]))};im.onerror=()=>r(null);im.src=u})}
 async function photos(fs){const o=[];for(const f of fs){const d=await shrink(f);if(d)o.push(d)}return o}
 async function add(){
  const t=$('#tx').value.trim(),fs=$('#ph').files;
@@ -132,6 +148,7 @@ $('#bak').onclick=async()=>{const nw=items.filter(i=>(i.u||i.f)>last);let sel=it
  if(await dl(`punchlist_${n}_${tag}_${t.getFullYear()}-${z(t.getMonth()+1)}-${z(t.getDate())}_${z(t.getHours())}${z(t.getMinutes())}.json`,JSON.stringify(sel))){setLast(Date.now());banner()}};
 $('#imp').onclick=()=>$('#file').click();
 $('#file').onchange=async e=>{let nw=0,mg=0;try{for(const f of e.target.files){const d=JSON.parse(await f.text());if(!Array.isArray(d))continue;for(const x of d){const o=items.find(i=>i.id==x.id);if(!o){items.push(x);nw++}else{const a=(x.u||x.f)>(o.u||o.f),w=a?x:o,l=a?o:x;w.fo=[...new Set([...w.fo,...l.fo])];items[items.indexOf(o)]=w;mg++}}}save();render();alert(`Unión lista: ${nw} observaciones nuevas, ${mg} ya existían (se conservó la versión más reciente y se juntaron las fotos).`)}catch(x){alert('Archivo inválido')}e.target.value=''};
+$('#ql').value=ql;$('#ql').onchange=e=>{ql=e.target.value;try{localStorage.setItem('pq',ql)}catch(x){}};
 idb().then(load).then(render);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
