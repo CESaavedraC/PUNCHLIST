@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1d5fd1"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Punchlist"><link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#1d5fd1">
+<title>Punchlist Puertas MVS</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--tx:#1b1f24;--mut:#667085;--bd:#d9dde3;--ac:#1d5fd1;--red:#d92d20;--amb:#e8a300;--grn:#12a150;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171c;--card:#1e2229;--tx:#e8eaed;--mut:#98a2b3;--bd:#323944;--ac:#5b9bff;--red:#f97066;--amb:#f5b83d;--grn:#47cd89;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#14171c;--card:#1e2229;--tx:#e8eaed;--mut:#98a2b3;--bd:#323944;--ac:#5b9bff;--red:#f97066;--amb:#f5b83d;--grn:#47cd89;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{position:sticky;top:env(safe-area-inset-top,0px);background:var(--card);border-bottom:1px solid var(--bd);padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;z-index:5}
+h1{font-size:17px;margin:0;flex:1;min-width:150px}
+button,select,input,textarea{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:8px 12px}
+button{cursor:pointer}button.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+main{padding:14px;max-width:1100px;margin:0 auto}
+.sum{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.sum div{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px 14px}
+.sum b{font-size:20px;display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.mv{background:var(--card);border:1px solid var(--bd);border-left:5px solid var(--grn);border-radius:10px;padding:10px;cursor:pointer;text-align:left}
+.mv.o{border-left-color:var(--red)}.mv.z{border-left-color:var(--bd)}
+.mv h3{margin:0 0 4px;font-size:16px}.mut{color:var(--mut);font-size:13px}
+.bar{height:6px;background:var(--bd);border-radius:3px;margin-top:6px;overflow:hidden}.bar i{display:block;height:100%;background:var(--grn)}
+.pcs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:12px}
+.pc{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px}
+.pc h3{margin:0 0 8px}
+.door{display:block;width:100%;text-align:left;margin-top:6px;border-left:5px solid var(--grn)}
+.door.o{border-left-color:var(--red)}.door.z{border-left-color:var(--bd)}
+.item{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px;margin-top:10px}
+.ph{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.ph img{width:84px;height:84px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--bd)}
+.st{padding:2px 8px;border-radius:99px;font-size:12px;color:#fff}
+.s-abierto{background:var(--red)}.s-proceso{background:var(--amb);color:#222}.s-cerrado{background:var(--grn)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+textarea{width:100%;min-height:60px}
+#lb{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:20}
+#lb img{max-width:96vw;max-height:92vh}
+a.b{color:var(--ac);cursor:pointer}
+.drow{display:flex;gap:6px;margin-top:6px}.drow .door{margin-top:0;flex:1}.cam{font-size:22px;padding:8px 14px}
+.bn{background:var(--card);border-bottom:1px solid var(--bd);padding:6px 14px;font-size:12px;color:var(--mut)}.bn.w{color:var(--red);font-weight:600}
+</style>
+</head>
+<body>
+<header>
+<h1 id="ttl">Punchlist puertas · 25 MVS</h1>
+<button id="exp">CSV</button><button id="bak">Guardar respaldo</button>
+<button id="imp">Unir respaldos</button><input id="file" type="file" accept=".json,application/json" multiple hidden>
+</header>
+<div id="bn"></div>
+<main id="app"></main>
+<div id="lb" onclick="this.style.display='none'"><img id="lbi" alt=""></div>
+<script>
+const NMVS=25,NPCS=4,DOORS={F:'Frontal',P:'Posterior'};
+const ST={abierto:'Abierto',proceso:'En proceso',cerrado:'Cerrado'};
+let items=[],v={m:null,p:null,d:null},db=null,last=0;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const $=s=>document.querySelector(s);
+function idb(){return new Promise(r=>{try{const q=indexedDB.open('punchlist-mvs',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>{db=q.result;r()};q.onerror=()=>r()}catch(e){r()}})}
+function load(){return new Promise(r=>{if(!db)return r();try{const t=db.transaction('kv'),o=t.objectStore('kv'),g=o.get('items'),l=o.get('last');g.onsuccess=()=>{items=g.result||[]};l.onsuccess=()=>{last=l.result||0};t.oncomplete=()=>r();t.onerror=()=>r();t.onabort=()=>r()}catch(e){r()}})}
+function setLast(t){last=t;try{if(db)db.transaction('kv','readwrite').objectStore('kv').put(t,'last')}catch(e){}}
+function banner(){const mb=(JSON.stringify(items).length/1048576).toFixed(1),nw=items.filter(i=>(i.u||i.f)>last).length,h=last?Math.round((Date.now()-last)/36e5):0;
+ $('#bn').innerHTML=`<div class="bn ${db?'':'w'}">${db?'💾 Guardado en este teléfono':'⚠ Este navegador no permite guardar datos: respalda de inmediato y no cierres la página'} · ${mb} MB · ${nw} cambio(s) sin respaldar · último respaldo: ${last?'hace '+(h<48?h+' h':Math.round(h/24)+' d'):'nunca'}</div>`}
+function save(){try{if(db)db.transaction('kv','readwrite').objectStore('kv').put(items,'items')}catch(e){console.error(e)}}
+const cnt=(m,p,d)=>{const l=items.filter(i=>i.m==m&&(!p||i.p==p)&&(!d||i.d==d));return{t:l.length,o:l.filter(i=>i.s!='cerrado').length}};
+function render(){render0();banner()}
+function render0(){
+ const a=$('#app');
+ if(!v.m){
+  const all=cnt(),open=all.o;let dp=0;for(let m=1;m<=NMVS;m++)for(let p=1;p<=NPCS;p++)for(const d in DOORS)if(cnt(m,p,d).o)dp++;
+  $('#ttl').textContent='Punchlist puertas · 25 MVS';
+  let h=`<div class="sum"><div><b style="color:var(--grn)">${NMVS*NPCS*2-dp}</b>Puertas OK de ${NMVS*NPCS*2}</div><div><b style="color:var(--red)">${dp}</b>Puertas con pendientes</div><div><b>${all.t}</b>Observaciones</div><div><b style="color:var(--red)">${open}</b>Pendientes</div><div><b style="color:var(--grn)">${all.t-open}</b>Cerradas</div></div><div class="grid">`;
+  for(let m=1;m<=NMVS;m++){const c=cnt(m);const pct=c.t?Math.round((c.t-c.o)/c.t*100):100;
+   h+=`<button class="mv ${c.o?'o':''}" onclick="go(${m})"><h3>MVS ${String(m).padStart(2,'0')}</h3><div class="mut">${c.t?(c.o?c.o+' pendientes / '+c.t:'OK · '+c.t+' cerradas'):'OK · sin observaciones'}</div><div class="bar"><i style="width:${pct}%"></i></div></button>`}
+  a.innerHTML=h+'</div>';
+ }else if(!v.d){
+  $('#ttl').textContent='MVS '+String(v.m).padStart(2,'0');
+  let h=`<a class="b" onclick="go(null)">← Todas las MVS</a><div class="pcs">`;
+  for(let p=1;p<=NPCS;p++){h+=`<div class="pc"><h3>PCS ${p}</h3>`;
+   for(const d in DOORS){const c=cnt(v.m,p,d);
+    h+=`<div class="drow"><button class="door ${c.o?'o':''}" onclick="door(${p},'${d}')"><b>Puerta ${DOORS[d]}</b><br><span class="mut">${c.t?(c.o?c.o+' pendientes / '+c.t:'OK · '+c.t+' cerradas'):'OK · sin observaciones'}</span></button><button class="cam" title="Foto" onclick="door(${p},'${d}',1)">📷</button></div>`}
+   h+='</div>'}
+  a.innerHTML=h+'</div>';
+ }else{
+  $('#ttl').textContent=`MVS ${String(v.m).padStart(2,'0')} · PCS ${v.p} · ${DOORS[v.d]}`;
+  const l=items.filter(i=>i.m==v.m&&i.p==v.p&&i.d==v.d);
+  let h=`<a class="b" onclick="go(${v.m})">← MVS ${String(v.m).padStart(2,'0')}</a>
+  <div class="item"><b>Nueva observación</b><textarea id="tx" placeholder="Ej: bisagra suelta, falta sello, pintura dañada…"></textarea>
+  <div class="row" style="margin-top:8px"><input id="ph" type="file" accept="image/*" capture="environment" multiple onchange="$('#pc').textContent=this.files.length+' foto(s) lista(s)'"><span id="pc" class="mut"></span><button class="p" onclick="add()">Agregar</button></div></div>`;
+  for(const i of l){
+   h+=`<div class="item"><div class="row"><span class="st s-${i.s}">${ST[i.s]}</span><span class="mut">${new Date(i.f).toLocaleString('es-CL')}</span><span style="flex:1"></span>
+   <select onchange="setS('${i.id}',this.value)">${Object.keys(ST).map(k=>`<option value="${k}" ${k==i.s?'selected':''}>${ST[k]}</option>`).join('')}</select>
+   <button onclick="del('${i.id}')">Eliminar</button></div><p>${esc(i.t)}</p>
+   <div class="ph">${i.fo.map((f,n)=>`<img src="${f}" alt="foto" onclick="zoom('${i.id}',${n})">`).join('')}</div>
+   <div class="row" style="margin-top:8px"><label class="mut">+ foto <input type="file" accept="image/*" capture="environment" multiple onchange="addPh('${i.id}',this.files)"></label></div></div>`}
+  if(!l.length)h+='<p class="mut">Puerta OK: sin observaciones.</p>';
+  a.innerHTML=h;
+ }
+}
+function go(m){v={m,p:null,d:null};render();scrollTo(0,0)}
+function door(p,d,c){v.p=p;v.d=d;render();scrollTo(0,0);if(c){const e=$('#ph');if(e)e.click()}}
+function shrink(f){return new Promise(r=>{const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{const k=Math.min(1,900/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);r(c.toDataURL('image/jpeg',.6))};im.onerror=()=>r(null);im.src=u})}
+async function photos(fs){const o=[];for(const f of fs){const d=await shrink(f);if(d)o.push(d)}return o}
+async function add(){
+ const t=$('#tx').value.trim(),fs=$('#ph').files;
+ if(!t&&!fs.length)return;
+ const fo=await photos(fs);
+ items.unshift({id:uid(),m:v.m,p:v.p,d:v.d,t:t||'(sin descripción)',s:'abierto',f:Date.now(),u:Date.now(),fo});
+ save();render();
+}
+async function addPh(id,fs){const i=items.find(x=>x.id==id);i.fo.push(...await photos(fs));i.u=Date.now();save();render()}
+const uid=()=>'i'+Date.now()+Math.random().toString(36).slice(2,6);
+function setS(id,s){const i=items.find(x=>x.id==id);i.s=s;i.u=Date.now();save();render()}
+function del(id){if(confirm('¿Eliminar esta observación y sus fotos?')){items=items.filter(x=>x.id!=id);save();render()}}
+function zoom(id,n){$('#lbi').src=items.find(x=>x.id==id).fo[n];$('#lb').style.display='flex'}
+async function dl(name,data){try{const d=window.claude?await claude.use('downloads'):null;if(d){await d.save({filename:name,data});return true}}catch(e){if(e&&e.code=='declined')return false}
+ const f=new File([data],name,{type:name.endsWith('.csv')?'text/csv':'application/json'});
+ try{if(/iPhone|iPad|Android/i.test(navigator.userAgent)&&navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return true}}catch(e){if(e&&e.name=='AbortError')return false}
+ const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=name;document.body.appendChild(a);a.click();a.remove();return true}
+$('#exp').onclick=()=>{
+ const q=s=>'"'+String(s).replace(/"/g,'""')+'"';
+ let c='\ufeffMVS,PCS,Puerta,Observación,Estado,Fecha,N° fotos\n';
+ [...items].sort((a,b)=>a.m-b.m||a.p-b.p||a.d.localeCompare(b.d)).forEach(i=>c+=[i.m,i.p,DOORS[i.d],q(i.t),ST[i.s],new Date(i.f).toLocaleDateString('es-CL'),i.fo.length].join(',')+'\n');
+ dl('punchlist.csv',c)};
+$('#bak').onclick=async()=>{const nw=items.filter(i=>(i.u||i.f)>last);let sel=items,tag='completo';
+ if(last&&nw.length&&nw.length<items.length&&confirm(`Aceptar = solo los ${nw.length} cambios nuevos desde el último respaldo (archivo más liviano).\nCancelar = respaldo completo.`)){sel=nw;tag='nuevos'}
+ const n=(prompt('Nombre del equipo o persona (va en el nombre del archivo):','')||'equipo').replace(/[^\w-]+/g,'-'),t=new Date(),z=x=>String(x).padStart(2,'0');
+ if(await dl(`punchlist_${n}_${tag}_${t.getFullYear()}-${z(t.getMonth()+1)}-${z(t.getDate())}_${z(t.getHours())}${z(t.getMinutes())}.json`,JSON.stringify(sel))){setLast(Date.now());banner()}};
+$('#imp').onclick=()=>$('#file').click();
+$('#file').onchange=async e=>{let nw=0,mg=0;try{for(const f of e.target.files){const d=JSON.parse(await f.text());if(!Array.isArray(d))continue;for(const x of d){const o=items.find(i=>i.id==x.id);if(!o){items.push(x);nw++}else{const a=(x.u||x.f)>(o.u||o.f),w=a?x:o,l=a?o:x;w.fo=[...new Set([...w.fo,...l.fo])];items[items.indexOf(o)]=w;mg++}}}save();render();alert(`Unión lista: ${nw} observaciones nuevas, ${mg} ya existían (se conservó la versión más reciente y se juntaron las fotos).`)}catch(x){alert('Archivo inválido')}e.target.value=''};
+idb().then(load).then(render);
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+</script>
+</body>
+</html>
