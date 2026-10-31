@@ -46,12 +46,13 @@ a.b{color:var(--ac);cursor:pointer}
 .k{cursor:pointer;border-color:var(--ac)!important}.ph img.big{width:100%;height:auto;max-height:60vh;object-fit:contain}
 .report{background:#fff;color:#111;padding:16px;border:1px solid var(--bd);border-radius:8px;margin-top:12px;overflow-x:auto}.report table{border-collapse:collapse;width:100%;margin:8px 0}.report th,.report td{border:1px solid #a6a6a6;padding:5px 8px;text-align:left;font-size:13px;vertical-align:top}.report th{background:#d9e8f5}.report h3{color:#1f4e79;margin:16px 0 4px;font-size:15px}.report .ph2{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}.report .ph2 img{width:48%;max-height:9cm;object-fit:contain}.report .ft{break-inside:avoid;margin-top:12px;font-size:13px}.rhd{display:flex;align-items:center;justify-content:space-between;gap:10px}
 @media print{header,#bn,.noprint{display:none!important}body{background:#fff}main{padding:0;max-width:none}.report{border:0;padding:0;margin:0}}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.chip{border:1px solid var(--bd);border-radius:99px;padding:8px 12px;display:flex;gap:6px;align-items:center;cursor:pointer}.chip:has(input:checked){background:var(--ac);color:#fff;border-color:var(--ac)}.btnl{border:1px solid var(--bd);border-radius:8px;padding:8px 12px;cursor:pointer}.th{position:relative;display:inline-block}.th b{position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;border-radius:50%;width:22px;height:22px;text-align:center;line-height:22px;cursor:pointer}
 </style>
 </head>
 <body>
 <header>
 <h1 id="ttl">Punchlist puertas · 25 MVS</h1>
-<button id="rpb" onclick="showRep()">Informe</button><button id="exp">CSV</button><button id="bak">Guardar respaldo</button><select id="ql" title="Calidad de las fotos nuevas"><option value="s">Foto estándar</option><option value="a">Foto alta</option><option value="m">Foto máxima</option></select>
+<button id="rpb" class="p" onclick="nuevoRep()">+ Nuevo informe</button><button id="exp">CSV</button><button id="bak">Guardar respaldo</button><select id="ql" title="Calidad de las fotos nuevas"><option value="s">Foto estándar</option><option value="a">Foto alta</option><option value="m">Foto máxima</option></select>
 <button id="imp">Unir respaldos</button><input id="file" type="file" accept=".json,application/json" multiple hidden>
 </header>
 <div id="bn"></div>
@@ -60,7 +61,7 @@ a.b{color:var(--ac);cursor:pointer}
 <script>
 const NMVS=25,NPCS=4,DOORS={F:'Frontal',P:'Posterior'};
 const ST={abierto:'Abierto',proceso:'En proceso',cerrado:'Cerrado'};
-let items=[],v={m:null,p:null,d:null},db=null,last=0,lf='p',opn=null;
+let items=[],v={m:null,p:null,d:null},db=null,last=0,lf='p',opn=null,pend=[];
 const QS={s:[1280,.75],a:[1920,.85],m:[4000,.92]};let ql='a';try{ql=localStorage.getItem('pq')||'a'}catch(e){}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const $=s=>document.querySelector(s);
@@ -96,14 +97,16 @@ function render0(){
   $('#ttl').textContent=`MVS ${String(v.m).padStart(2,'0')} · PCS ${v.p} · ${DOORS[v.d]}`;
   const l=items.filter(i=>i.m==v.m&&i.p==v.p&&i.d==v.d);
   let h=`<a class="b" onclick="go(${v.m})">← MVS ${String(v.m).padStart(2,'0')}</a>
-  <div class="item"><b>Nueva observación</b><textarea id="tx" placeholder="Ej: bisagra suelta, falta sello, pintura dañada…"></textarea>
-  <div class="row" style="margin-top:8px"><input id="ph" type="file" accept="image/*" capture="environment" multiple onchange="$('#pc').textContent=this.files.length+' foto(s) lista(s)'"><span id="pc" class="mut"></span><button class="p" onclick="add()">Agregar</button></div></div>`;
+  <div class="item"><b>Nueva observación</b><div class="chips">${OBS.map((o,k)=>`<label class="chip"><input type="checkbox" class="oc" value="${k}"> ${o}</label>`).join('')}</div>
+  <textarea id="tx" placeholder="Detalle adicional (opcional)"></textarea>
+  <div class="row" style="margin-top:8px"><label class="btnl">📷 Agregar fotos<input id="ph" type="file" accept="image/*" multiple hidden onchange="pickPh(this)"></label><span id="pc" class="mut">${pend.length?pend.length+' foto(s) lista(s)':''}</span></div><div class="ph" id="pv">${pvHTML()}</div>
+  <div class="row" style="margin-top:10px"><button class="p" onclick="add()">Guardar observación</button></div></div>`;
   for(const i of l){
    h+=`<div class="item"><div class="row"><span class="st s-${i.s}">${ST[i.s]}</span><span class="mut">${new Date(i.f).toLocaleString('es-CL')}</span><span style="flex:1"></span>
    <select onchange="setS('${i.id}',this.value)">${Object.keys(ST).map(k=>`<option value="${k}" ${k==i.s?'selected':''}>${ST[k]}</option>`).join('')}</select>
    <button onclick="del('${i.id}')">Eliminar</button></div><p>${esc(i.t)}</p>
    <div class="ph">${i.fo.map((f,n)=>`<img src="${f}" alt="foto" onclick="zoom('${i.id}',${n})">`).join('')}</div>
-   <div class="row" style="margin-top:8px"><label class="mut">+ foto <input type="file" accept="image/*" capture="environment" multiple onchange="addPh('${i.id}',this.files)"></label></div></div>`}
+   <div class="row" style="margin-top:8px"><label class="mut">+ foto <input type="file" accept="image/*" multiple onchange="addPh('${i.id}',this.files)"></label></div></div>`}
   if(!l.length)h+='<p class="mut">Puerta OK: sin observaciones.</p>';
   a.innerHTML=h;
  }
@@ -116,7 +119,7 @@ function listView(a){
  let h=`<div class="row"><a class="b" onclick="go(null)">← Todas las MVS</a><span style="flex:1"></span><select onchange="showList(this.value)">${[['p','Pendientes'],['c','Cerradas'],['t','Todas']].map(o=>`<option value="${o[0]}" ${o[0]==lf?'selected':''}>${o[1]}</option>`).join('')}</select></div><p class="mut">${l.length} observación(es)</p>`;
  for(const i of l){const o=opn==i.id;
   h+=`<div class="item" onclick="tgl('${i.id}')" style="cursor:pointer"><div class="row"><b>MVS ${String(i.m).padStart(2,'0')} · PCS ${i.p} · ${DOORS[i.d]}</b><span class="st s-${i.s}">${ST[i.s]}</span><span style="flex:1"></span><span class="mut">${i.fo.length?'📷 '+i.fo.length:'sin foto'} ${o?'▲':'▼'}</span></div><div style="margin-top:4px">${esc(i.t)}</div>`;
-  if(o)h+=`<div class="ph">${i.fo.map((f,n)=>`<img class="big" src="${f}" alt="foto" onclick="event.stopPropagation();zoom('${i.id}',${n})">`).join('')}</div><div class="row" style="margin-top:8px"><button onclick="event.stopPropagation();v={m:${i.m},p:${i.p},d:'${i.d}'};render();scrollTo(0,0)">Abrir puerta</button></div>`;
+  if(o)h+=`<div class="ph">${i.fo.map((f,n)=>`<img class="big" src="${f}" alt="foto" onclick="event.stopPropagation();zoom('${i.id}',${n})">`).join('')}</div><div class="row" style="margin-top:8px"><button onclick="event.stopPropagation();pend=[];v={m:${i.m},p:${i.p},d:'${i.d}'};render();scrollTo(0,0)">Abrir puerta</button></div>`;
   h+='</div>'}
  if(!l.length)h+='<p class="mut">No hay observaciones en esta lista.</p>';
  a.innerHTML=h}
@@ -126,7 +129,9 @@ try{Object.assign(rp,JSON.parse(localStorage.getItem('rp')||'{}'))}catch(e){}
 const z2=x=>String(x).padStart(2,'0');
 function hoy(){const t=new Date();return t.getFullYear()+'-'+z2(t.getMonth()+1)+'-'+z2(t.getDate())}
 function showRep(){if(!rp.f)rp.f=hoy();v={m:null,p:null,d:null,rep:1};render();scrollTo(0,0)}
-function rset(k,x){rp[k]=x;try{localStorage.setItem('rp',JSON.stringify({p:rp.p,w:rp.w,c:rp.c}))}catch(e){}$('#rv').innerHTML=reportHTML()}
+function sv(){try{localStorage.setItem('rp',JSON.stringify({p:rp.p,w:rp.w,c:rp.c,n:rp.n,x:rp.x}))}catch(e){}}
+function rset(k,x){rp[k]=x;if(k=='n')rp.x=false;sv();$('#rv').innerHTML=reportHTML()}
+function nuevoRep(){if(rp.x){rp.n=String(rp.n||'').replace(/\d+$/,m=>String(+m+1));rp.x=false}rp.f=hoy();rp.a='d';sv();v={m:null,p:null,d:null,rep:1};render();scrollTo(0,0)}
 function rpData(){const d0=new Date(rp.f+'T00:00:00').getTime(),d1=d0+864e5,inD=t=>t>=d0&&t<d1;
  const l=(rp.a=='p'?items.filter(i=>i.s!='cerrado'):items.filter(i=>inD(i.f)||inD(i.u||i.f))).sort((x,y)=>x.m-y.m||x.p-y.p||x.d.localeCompare(y.d)||x.f-y.f);
  let dp=0;for(let m=1;m<=NMVS;m++)for(let p=1;p<=NPCS;p++)for(const k in DOORS)if(cnt(m,p,k).o)dp++;
@@ -147,16 +152,16 @@ function reportHTML(){const D=rpData(),T=r=>`<table>${r.map(x=>`<tr><th style="w
  for(const [i,n] of cf)h+=`<div class="ft"><b>${n}. ${lbl(i)}</b> — ${esc(i.t)} (${ST[i.s]})<div class="ph2">${i.fo.map(f=>`<img src="${f}" alt="foto">`).join('')}</div></div>`;
  return h+'</div>'}
 function repView(a){$('#ttl').textContent='Informe diario';
- a.innerHTML=`<a class="b noprint" onclick="go(null)">← Todas las MVS</a>
+ a.innerHTML=`<div class="row noprint"><a class="b" onclick="go(null)">← Todas las MVS</a><span style="flex:1"></span><button class="p" onclick="nuevoRep()">+ Nuevo informe</button></div>
  <div class="item noprint"><b>Datos del informe</b>
  <div class="row" style="margin-top:8px"><label>Fecha <input type="date" value="${rp.f}" onchange="rset('f',this.value)"></label><label>N° informe <input value="${esc(rp.n)}" size="6" onchange="rset('n',this.value)"></label></div>
  <div class="row" style="margin-top:8px"><input placeholder="Proyecto / servicio" value="${esc(rp.p)}" onchange="rset('p',this.value)" style="flex:1;min-width:220px"></div>
  <div class="row" style="margin-top:8px"><input placeholder="Redactado por" value="${esc(rp.w)}" onchange="rset('w',this.value)"><input placeholder="Cargo" value="${esc(rp.c)}" onchange="rset('c',this.value)"></div>
  <div class="row" style="margin-top:8px"><select onchange="rset('a',this.value)"><option value="d" ${rp.a=='d'?'selected':''}>Observaciones del día</option><option value="p" ${rp.a=='p'?'selected':''}>Todas las pendientes</option></select></div>
- <div class="row" style="margin-top:10px"><button class="p" onclick="repDocx(this)">Descargar Word (.docx)</button><button onclick="window.print()">Imprimir / PDF</button></div></div>
+ <div class="row" style="margin-top:10px"><button class="p" onclick="repDocx(this)">Descargar Word (.docx)</button><button onclick="repPdf(this)">Descargar PDF</button></div></div>
  <div id="rv">${reportHTML()}</div>`}
 async function repDocx(btn){const t=btn.textContent;btn.disabled=true;btn.textContent='Generando…';
- try{const b=await buildDocx();await dl(`Informe_Punchlist_${rp.f}${rp.n?'_N'+rp.n.replace(/[^\w-]+/g,''):''}.docx`,b)}catch(e){alert('No se pudo generar el Word: '+(e.message||e))}
+ try{const b=await buildDocx();if(await dl(`Informe_Punchlist_${rp.f}${rp.n?'_N'+rp.n.replace(/[^\w-]+/g,''):''}.docx`,b)){rp.x=true;sv()}}catch(e){alert('No se pudo generar el Word: '+(e.message||e))}
  btn.disabled=false;btn.textContent=t}
 const XM=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const b64=s=>{const b=atob(s.split(',')[1]),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u};
@@ -171,6 +176,56 @@ function zipBlob(files){const enc=new TextEncoder(),parts=[],cen=[];let off=0;
   cen.push(new Uint8Array(c.buffer),nm);off+=30+nm.length+d.length}
  let cl=0;cen.forEach(x=>cl+=x.length);const e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cl,true);e.setUint32(16,off,true);
  return new Blob([...parts,...cen,new Uint8Array(e.buffer)],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'})}
+async function repPdf(btn){const t=btn.textContent;btn.disabled=true;btn.textContent='Generando…';
+ try{const b=await buildPdf();if(await dl(`Informe_Punchlist_${rp.f}${rp.n?'_N'+rp.n.replace(/[^\w-]+/g,''):''}.pdf`,b)){rp.x=true;sv()}}catch(e){alert('No se pudo generar el PDF: '+(e.message||e))}
+ btn.disabled=false;btn.textContent=t}
+async function buildPdf(){
+ const D=rpData(),W=595,H=842,M=40,CW=W-2*M,BL='0.12 0.31 0.47 rg',g=document.createElement('canvas').getContext('2d');
+ const mw=(t,s,b)=>{g.font=`${b?'bold ':''}${s}px Helvetica, Arial, sans-serif`;return g.measureText(t).width};
+ const wrap=(t,s,b,w)=>{const out=[];for(const pr of String(t).split('\n')){let ln='';for(let wd of pr.split(/\s+/)){while(mw(wd,s,b)>w&&wd.length>1){let k=wd.length-1;while(k>1&&mw(wd.slice(0,k),s,b)>w)k--;if(ln){out.push(ln);ln=''}out.push(wd.slice(0,k));wd=wd.slice(k)}const tt=ln?ln+' '+wd:wd;if(!ln||mw(tt,s,b)<=w)ln=tt;else{out.push(ln);ln=wd}}out.push(ln)}return out};
+ const M1={'\u2014':0x97,'\u2013':0x96,'\u2019':0x92,'\u2018':0x91,'\u201c':0x93,'\u201d':0x94,'\u2022':0x95,'\u2026':0x85,'\u20ac':0x80};
+ const pe=t=>Array.from(String(t)).map(c=>{let k=c.codePointAt(0);if(M1[c])k=M1[c];else if(k<32)k=32;else if(k>255)k=63;const ch=String.fromCharCode(k);return ch=='('||ch==')'||ch=='\\'?'\\'+ch:ch}).join('');
+ const pages=[],imgs=[];let pg,y;
+ const np=()=>{pg={c:[],im:new Set()};pages.push(pg);y=H-M};
+ const T=(t,x,yy,s,b,col)=>pg.c.push(`BT ${col||'0 g'} /${b?'F2':'F1'} ${s} Tf ${x.toFixed(1)} ${yy.toFixed(1)} Td (${pe(t)}) Tj ET`);
+ const RC=(x,yy,w,h,fill)=>pg.c.push(`${fill?fill+' '+x+' '+yy+' '+w+' '+h+' re f ':''}0.65 G 0.5 w ${x} ${yy} ${w} ${h} re S`);
+ const row=(cells,ws,s=9)=>{const L=cells.map((c,k)=>wrap(c.t,s,c.b,ws[k]-8)),n=Math.max(...L.map(a=>a.length)),h=n*(s+3)+6;if(y-h<M+20)np();let x=M;cells.forEach((c,k)=>{RC(x,y-h,ws[k],h,c.f);L[k].forEach((ln,q)=>T(ln,x+4,y-s-2-q*(s+3),s,c.b));x+=ws[k]});y-=h};
+ const Hd=t=>{if(y-60<M)np();y-=18;T(t,M,y,12,1,BL);y-=8};
+ const jpg=async src=>{if(!src.startsWith('data:image/jpeg')){const im=new Image();await new Promise(r=>{im.onload=r;im.onerror=r;im.src=src});const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0);src=c.toDataURL('image/jpeg',.92)}const[w,h]=await dim(src);imgs.push({u:b64(src),w,h});return imgs.length-1};
+ const put=(k,x,yy,w,h)=>{pg.im.add(k);pg.c.push(`q ${w.toFixed(1)} 0 0 ${h.toFixed(1)} ${x.toFixed(1)} ${yy.toFixed(1)} cm /Im${k} Do Q`)};
+ np();const lk=await jpg(LOGO),lh=34,lw=lh*LW/LH;put(lk,M,y-lh,lw,lh);
+ T('INFORME DIARIO',W-M-mw('INFORME DIARIO',18,1),y-16,18,1,BL);const sb='Punchlist de puertas PCS';T(sb,W-M-mw(sb,9),y-30,9);y-=lh+14;
+ const KV=r=>r.forEach(x=>row([{t:x[0],b:1,f:'0.85 0.91 0.96 rg'},{t:String(x[1])}],[190,325]));
+ KV(D.info);Hd('1. Resumen');KV(D.res);Hd('2. Detalle de observaciones');
+ if(!D.l.length){y-=12;T('Sin observaciones registradas en esta fecha.',M,y,10);y-=8}
+ else{const Wd=[28,40,36,64,247,100];row(['N°','MVS','PCS','Puerta','Observación','Estado'].map(t=>({t,b:1,f:'0.74 0.84 0.93 rg'})),Wd);D.l.forEach((i,k)=>row([String(k+1),z2(i.m),String(i.p),DOORS[i.d],i.t,ST[i.s]].map(t=>({t})),Wd))}
+ const cf=D.l.map((i,k)=>[i,k+1]).filter(x=>x[0].fo.length);
+ if(cf.length&&y-390<M)np();
+ Hd('3. Registro fotográfico');
+ if(!cf.length){y-=12;T('Sin fotos en este informe.',M,y,10);y-=8}
+ for(const[i,k]of cf){
+  const hl=wrap(`${k}. ${lbl(i)} — ${i.t} (${ST[i.s]})`,9.5,1,CW),hh=hl.length*13+8,ks=[];
+  for(const f of i.fo)ks.push(await jpg(f));
+  const bw=250,bh=270,sc=q=>{const m=imgs[q],f=Math.min(bw/m.w,bh/m.h);return[m.w*f,m.h*f]};
+  const fh=Math.max(...ks.slice(0,2).map(a=>sc(a)[1]))+10;
+  if(y-hh-fh<M+20)np();
+  y-=4;hl.forEach(ln=>{y-=13;T(ln,M,y,9.5,1)});y-=4;
+  for(let q=0;q<ks.length;q+=2){const pr=ks.slice(q,q+2),rh=Math.max(...pr.map(a=>sc(a)[1]))+10;if(y-rh<M+20)np();pr.forEach((a,c)=>{const[w,h]=sc(a);put(a,M+c*(bw+15)+(bw-w)/2,y-h,w,h)});y-=rh}
+  y-=6}
+ pages.forEach((p,k)=>{pg=p;T(`Informe diario · ${rp.f}`,M,24,8);const t=`Página ${k+1} de ${pages.length}`;T(t,W-M-mw(t,8),24,8)});
+ const ch=[],of=[];let pos=0;const P=b=>{const u=typeof b=='string'?Uint8Array.from(b,c=>c.charCodeAt(0)):b;ch.push(u);pos+=u.length};
+ const O=(id,body)=>{of[id]=pos;P(`${id} 0 obj\n${body}\nendobj\n`)};
+ P('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+ const n0=5+imgs.length,N=n0+pages.length*2-1;
+ O(1,'<< /Type /Catalog /Pages 2 0 R >>');
+ O(2,`<< /Type /Pages /Kids [${pages.map((_,k)=>`${n0+2*k+1} 0 R`).join(' ')}] /Count ${pages.length} >>`);
+ O(3,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+ O(4,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+ imgs.forEach((m,k)=>{of[5+k]=pos;P(`${5+k} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${m.w} /Height ${m.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${m.u.length} >>\nstream\n`);P(m.u);P('\nendstream\nendobj\n')});
+ pages.forEach((p,k)=>{const c=p.c.join('\n'),ci=n0+2*k;O(ci,`<< /Length ${c.length} >>\nstream\n${c}\nendstream`);O(ci+1,`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << ${[...p.im].map(q=>`/Im${q} ${5+q} 0 R`).join(' ')} >> >> /Contents ${ci} 0 R >>`)});
+ const xp=pos;let xr=`xref\n0 ${N+1}\n0000000000 65535 f \n`;for(let i=1;i<=N;i++)xr+=String(of[i]).padStart(10,'0')+' 00000 n \n';
+ P(xr+`trailer\n<< /Size ${N+1} /Root 1 0 R >>\nstartxref\n${xp}\n%%EOF`);
+ return new Blob(ch,{type:'application/pdf'})}
 async function buildDocx(){
  const D=rpData(),files=[],rels=[];let n=0;
  const addImg=async src=>{n++;const png=src.startsWith('data:image/png'),nm='media/img'+n+(png?'.png':'.jpg');files.push({n:'word/'+nm,d:b64(src)});rels.push(`<Relationship Id="rId${n}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${nm}"/>`);const[w,h]=await dim(src);return{rid:'rId'+n,w,h,id:n}};
@@ -201,15 +256,20 @@ async function buildDocx(){
   {n:'word/document.xml',d:E.encode(doc)},
   {n:'word/_rels/document.xml.rels',d:E.encode(hd+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+rels.join('')+'</Relationships>')});
  return zipBlob(files)}
-function go(m){v={m,p:null,d:null};render();scrollTo(0,0)}
-function door(p,d,c){v.p=p;v.d=d;render();scrollTo(0,0);if(c){const e=$('#ph');if(e)e.click()}}
+function go(m){pend=[];v={m,p:null,d:null};render();scrollTo(0,0)}
+function door(p,d,c){pend=[];v.p=p;v.d=d;render();scrollTo(0,0);if(c){const e=$('#ph');if(e)e.click()}}
 function shrink(f){return new Promise(r=>{const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{const k=Math.min(1,QS[ql][0]/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);r(c.toDataURL('image/jpeg',QS[ql][1]))};im.onerror=()=>r(null);im.src=u})}
 async function photos(fs){const o=[];for(const f of fs){const d=await shrink(f);if(d)o.push(d)}return o}
+const OBS=['Manilla rota','Manilla forzada','Puerta descuadrada','Puerta no cierra','Puerta abierta sin perno'];
+const pvHTML=()=>pend.map((f,k)=>`<span class="th"><img src="${f}" alt="foto" onclick="zoomP(${k})"><b onclick="rmP(${k})">×</b></span>`).join('');
+function drawPend(){if($('#pv')){$('#pv').innerHTML=pvHTML();$('#pc').textContent=pend.length?pend.length+' foto(s) lista(s)':''}}
+function zoomP(k){$('#lbi').src=pend[k];$('#lb').style.display='flex'}
+function rmP(k){pend.splice(k,1);drawPend()}
+async function pickPh(inp){const fs=[...inp.files];if(!fs.length)return;$('#pc').textContent='Procesando '+fs.length+' foto(s)…';const o=await photos(fs);pend.push(...o);inp.value='';drawPend()}
 async function add(){
- const t=$('#tx').value.trim(),fs=$('#ph').files;
- if(!t&&!fs.length)return;
- const fo=await photos(fs);
- items.unshift({id:uid(),m:v.m,p:v.p,d:v.d,t:t||'(sin descripción)',s:'abierto',f:Date.now(),u:Date.now(),fo});
+ const sel=[...document.querySelectorAll('.oc:checked')].map(e=>OBS[+e.value]),ex=$('#tx').value.trim(),t=[...sel,...(ex?[ex]:[])].join('. ');
+ if(!t&&!pend.length)return alert('Elige una opción, escribe un detalle o agrega una foto');
+ items.unshift({id:uid(),m:v.m,p:v.p,d:v.d,t:t||'(sin descripción)',s:'abierto',f:Date.now(),u:Date.now(),fo:pend.slice()});pend=[];
  save();render();
 }
 async function addPh(id,fs){const i=items.find(x=>x.id==id);i.fo.push(...await photos(fs));i.u=Date.now();save();render()}
@@ -218,7 +278,7 @@ function setS(id,s){const i=items.find(x=>x.id==id);i.s=s;i.u=Date.now();save();
 function del(id){if(confirm('¿Eliminar esta observación y sus fotos?')){items=items.filter(x=>x.id!=id);save();render()}}
 function zoom(id,n){$('#lbi').src=items.find(x=>x.id==id).fo[n];$('#lb').style.display='flex'}
 async function dl(name,data){try{const d=window.claude?await claude.use('downloads'):null;if(d){await d.save({filename:name,data});return true}}catch(e){if(e&&e.code=='declined')return false}
- const f=new File([data],name,{type:name.endsWith('.docx')?'application/vnd.openxmlformats-officedocument.wordprocessingml.document':name.endsWith('.csv')?'text/csv':'application/json'});
+ const f=new File([data],name,{type:name.endsWith('.pdf')?'application/pdf':name.endsWith('.docx')?'application/vnd.openxmlformats-officedocument.wordprocessingml.document':name.endsWith('.csv')?'text/csv':'application/json'});
  try{if(/iPhone|iPad|Android/i.test(navigator.userAgent)&&navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return true}}catch(e){if(e&&e.name=='AbortError')return false}
  const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=name;document.body.appendChild(a);a.click();a.remove();return true}
 $('#exp').onclick=()=>{
